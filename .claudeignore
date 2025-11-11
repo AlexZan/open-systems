@@ -1,0 +1,12 @@
+# Archive Protection
+# AI agents should NEVER modify the archive directory
+
+archive/**
+
+# Exception: README is OK to reference
+!archive/README.md
+
+# Conceptual and Technical layers are OK to edit
+!conceptual/**
+!technical/**
+!implementation/**

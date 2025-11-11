@@ -1,0 +1,38 @@
+# Secrets and credentials
+credentials.json
+.gdrive_token.pickle
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+
+# Generated data files (large)
+document_chunks.json
+document_chunks_with_embeddings.json
+document_index.json
+gdrive_metadata.json
+
+# Supabase local config (if using)
+.supabase/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.log
