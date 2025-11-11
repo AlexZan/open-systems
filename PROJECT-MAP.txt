@@ -1,0 +1,182 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      OPEN SYSTEMS PROJECT STRUCTURE                          ║
+║                      Organization Complete ✓                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROJECT ROOT: d:\Dev\Open Systems\
+│
+├─ README.md .......................... Project overview & navigation
+├─ ORGANIZATION-SUMMARY.md ........... What was organized and why
+├─ NEXT-STEPS.md ..................... Immediate action items (Week 1-4)
+├─ PROJECT-MAP.txt ................... This file
+│
+├─ AI-BOOK/ .......................... Phase 1: Publish AI Book
+│  ├─ All Chapters.md ................ Complete manuscript (8,700+ lines)
+│  └─ PUBLISHING.md .................. Publishing checklist
+│
+├─ SPECS/ ........................... Phase 2: Source of Truth
+│  ├─ INDEX.md ....................... Master TOC (26+ chapters)
+│  ├─ GLOSSARY.md .................... 50+ key terms defined
+│  │
+│  ├─ 00-foundation/ ................. Part 1: Vision & Philosophy
+│  ├─ 01-governance/ ................. Part 2: Open Democracy
+│  ├─ 02-projects/ ................... Part 3: Open Projects (Unified)
+│  ├─ 03-forum/ ...................... Part 4: Open Forum
+│  ├─ 04-technical/ .................. Part 5: Technical Architecture
+│  └─ 05-operations/ ................. Appendix: Development Process
+│
+├─ DEV/ .............................. Phase 3: Implementation
+│  ├─ README.md ....................... Setup & development guidelines
+│  ├─ ROADMAP.md ...................... [TO CREATE] Phases & priorities
+│  ├─ frontend/ ....................... Next.js + Expo
+│  ├─ backend/ ........................ Supabase + tRPC
+│  ├─ smart-contracts/ ............... Solidity
+│  └─ proof-bundles/ ................. Generated during development
+│
+└─ DATA-DUMP/ ........................ Archive: 20+ Years of Thinking
+   ├─ README.md ....................... Archive guide & usage
+   ├─ archive/ ........................ 150+ old documents (read-only)
+   └─ recent/ ......................... Recently processed files
+
+═══════════════════════════════════════════════════════════════════════════════
+
+KEY CHANGES FROM LEGACY STRUCTURE
+══════════════════════════════════
+
+UNIFIED PROJECTS SYSTEM
+  - Old: Open Ventures (separate from Open Projects)
+  - New: Single Projects system with 3 types
+    * Closed Projects (single owner)
+    * Open Projects (community-run)
+    * Venture-style (local, task-bidding)
+  - All share same governance and funding mechanism
+  - Result: Simpler, more flexible architecture
+
+ARCHIVE PRESERVED
+  - 150+ legacy documents kept in /DATA-DUMP/archive/
+  - Shows 20-year evolution: DeDem → Openisim → Open Systems
+  - Used for reference, examples, and philosophical depth
+  - Not deleted—read-only reference material
+
+SPECS = SOURCE OF TRUTH
+  - 26+ spec files organized by topic
+  - Each spec = one book chapter
+  - Same specs used for development (acceptance criteria)
+  - Book and dev reference same source
+
+THREE-PHASE PUBLISHING
+  - Phase 1: AI Book (standalone, philosophical foundation)
+  - Phase 2: OS Book (using SPECS as outline)
+  - Phase 3: Dev parallel with book (guided by SPECS)
+  - Launch: Book + Dev released together
+
+═══════════════════════════════════════════════════════════════════════════════
+
+FILES CREATED TODAY (8 Files)
+════════════════════════════
+
+1. /README.md
+   - Project overview and vision
+   - Navigation guide
+   - Publishing timeline
+
+2. /SPECS/INDEX.md
+   - Master table of contents (26+ chapters)
+   - Complete book structure
+   - Concept dependency map
+   - Development roadmap reference
+
+3. /SPECS/GLOSSARY.md
+   - 50+ key terms defined consistently
+   - Cross-references between concepts
+   - Used by both book writers and developers
+
+4. /AI-BOOK/PUBLISHING.md
+   - Completion checklist
+   - Publishing path options
+   - Post-publication next steps
+
+5. /DATA-DUMP/README.md
+   - Archive explanation
+   - How to use 150+ old documents
+   - Concept tracing guide
+   - Organization by topic
+
+6. /DEV/README.md
+   - Getting started guide
+   - Development process (spec → code → proof → voting)
+   - Technology stack overview
+   - Key references to SPECS
+
+7. /ORGANIZATION-SUMMARY.md
+   - What was organized and why
+   - Key decisions made
+   - Status of all components
+   - Next steps overview
+
+8. /NEXT-STEPS.md
+   - Week-by-week action items
+   - Immediate priorities
+   - Parallelizable work streams
+   - Success criteria
+
+═══════════════════════════════════════════════════════════════════════════════
+
+NEXT IMMEDIATE TASKS (WEEK 1)
+═════════════════════════════
+
+Priority 1: Organize Recent Specifications
+  ☐ Map 27 recent markdown files to SPECS locations
+  ☐ Move/copy files to appropriate SPECS subfolders
+  ☐ Add YAML frontmatter to each spec
+
+Priority 2: Create DEV/ROADMAP.md
+  ☐ Define Phase 1 priorities (core project system)
+  ☐ Define Phase 2 priorities (advanced governance)
+  ☐ Define Phase 3 priorities (scale & polish)
+
+Priority 3: Verify AI Book Status
+  ☐ Identify remaining work
+  ☐ Set completion deadline
+  ☐ Plan for publication
+
+Priority 4: Populate Spec Content
+  ☐ Create folder structure
+  ☐ Extract content from recent files
+  ☐ Add examples from archive
+  ☐ Define acceptance criteria
+
+═══════════════════════════════════════════════════════════════════════════════
+
+TIMELINE
+════════
+
+Week 1-2: Organization & Content
+  - Map recent files to SPECS
+  - Populate spec content
+  - Create development roadmap
+
+Week 2-4: Completion & Setup
+  - Complete AI book chapters
+  - Finalize all spec files
+  - Set up development environment
+
+Week 4+: Three-Phase Execution
+  - Publish AI Book (standalone)
+  - Begin OS Book writing (using SPECS as outline)
+  - Begin Dev Phase 1 (following ROADMAP)
+  - Coordinate for simultaneous launch
+
+═══════════════════════════════════════════════════════════════════════════════
+
+STATUS: ✓ READY TO PROCEED
+
+Organization complete. Structure ready for:
+  ✓ AI Book publication (4 weeks)
+  ✓ OS Book writing (following SPECS outline)
+  ✓ Development (guided by SPECS + ROADMAP)
+  ✓ Community launch (book + dev together)
+
+Next action: Follow NEXT-STEPS.md for Week 1 priorities.
+
+═══════════════════════════════════════════════════════════════════════════════
