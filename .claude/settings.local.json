@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for dir in \"Applications\" \"Depricated\" \"Open Community\" \"Plan\" \"Projects\" \"Publish\" \"Rules\" \"Technical\" \"Theory\" \"Thoughts\" \"Use Cases\")",
+      "Bash(do echo \"=== $dir ===\")",
+      "Bash(ls:*)",
+      "Bash(done)",
+      "Bash(dir:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:*)",
+      "Read(//c/Dev/GameDev/EventHorizonGame/.claude/**)",
+      "Bash(powershell -Command \"$env:APPDATA\")",
+      "WebSearch",
+      "Read(//c/Users/Lex/Downloads/**)",
+      "Bash(npx:*)",
+      "Bash(awk:*)",
+      "Bash(mkdir:*)",
+      "Bash(choco --version:*)",
+      "Bash(choco install:*)",
+      "Bash(pandoc --version:*)",
+      "Bash(nul)"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  },
+  "skipWebFetchPreflight": true
+}
