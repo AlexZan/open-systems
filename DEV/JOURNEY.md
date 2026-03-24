@@ -6,7 +6,7 @@
 
 - **Specs**: [SPECS/INDEX.md](../SPECS/INDEX.md) — formal specifications
 - **Decisions**: [DEV/docs/decisions/](docs/decisions/) — architectural decisions (001-009)
-- **Brainstorms**: [DEV/docs/brainstorm/](docs/brainstorm/) — design explorations (001-014)
+- **Brainstorms**: [DEV/docs/brainstorm/](docs/brainstorm/) — design explorations (001-015a)
 - **Roadmap**: [DEV/docs/roadmap.md](docs/roadmap.md) — slice-based implementation plan
 - **Chain dev notes**: [chain-dev.md](../../.claude/projects/-data-Dev-Open-Systems/memory/chain-dev.md) — implementation details
 - **Glossary**: [SPECS/GLOSSARY.md](../SPECS/GLOSSARY.md) — terminology
@@ -15,17 +15,19 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Community-Governed Development
+## Current Status: SOVEREIGN (2026-03-25)
 
-10 contracts deployed on sovereign Cosmos SDK appchain. os-git CLI bridges git workflows to on-chain governance. The system dogfoods itself — code changes go through community voting with XP-weighted quorum.
+**The system governs itself. No human holds special power.**
 
-**Chain**: 10 CosmWasm contracts, 197 tests (135 unit + 62 e2e), zero clippy warnings.
+10 contracts deployed on sovereign Cosmos SDK appchain. All internal admin dissolved. All CosmWasm admin transferred to governance contract. Code changes go through community voting via os-git. The bootstrap phase is over.
 
-**Tooling**: 75 MCP tools, os-git CLI (11 commands), web explorer (10 tabs), Rust vault daemon.
+**Chain**: 10 CosmWasm contracts, 204 tests, zero clippy warnings. Admin = null on all contracts. CosmWasm admin = governance on all contracts.
 
-**Infrastructure**: Chain node + vault daemon running as systemd services. Auto-restart on crash/hibernation.
+**Tooling**: 75 MCP tools, os-git CLI (11 commands), web explorer (10 tabs), Rust vault daemon with P2P content transfer.
 
-**Seeded state**: 3 subjects, 3 users with XP, 2 projects (1 released/community-governed), 9+ contributions, full lifecycle verified.
+**Infrastructure**: Chain node + vault daemon running as systemd user services (`Restart=always`). Auto-restart on crash/hibernation.
+
+**Seeded state**: 4 subjects (rust, cosmwasm, governance, sovereign), 8 users with XP, 2 projects (both released/community-governed), 13+ contributions, full lifecycle verified (forum, auditing, governance proposals, build sovereignty, expression dimensions).
 
 ### What's Built
 
@@ -46,6 +48,87 @@ Read those first. This doc tracks **implementation progress and pivots**.
 | Web explorer | Done | 10 tabs, dark theme, all data visible |
 | os-git CLI | Done | 11 commands, canonical diff hashing, vault integration |
 | Redeploy scripts | Done | deploy-all.sh for incremental deployment |
+
+---
+
+## Session: Chain Scaffold & First Contracts (2026-03-07)
+
+## Session: Sovereignty Achieved (2026-03-25)
+
+The milestone. Open Systems became self-governing.
+
+### Admin Dissolution
+
+Disabled internal admin on all 10 contracts — `admin: null` across the board. Transferred CosmWasm-level admin (migration authority) to the governance contract on all 10 contracts. Verified: admin key now gets "unauthorized" on every operation. `AdminGrantExperience` returns "Admin is disabled." `set-contract-admin` returns "unauthorized." No backdoors remain.
+
+### Governance Verification
+
+Submitted governance proposal #4: "Create sovereignty-verified subject." Alice voted yes. After 120s voting period, finalized. The "sovereign" subject was created on-chain — with the governance contract as creator, proving cross-contract execution works through governance without admin.
+
+### First Sovereign Code Change
+
+Added a sovereignty transition comment to the projects contract. Committed, submitted via os-git as contribution #13. Bob (151 XP) and charlie (110 XP) voted approve through the CLI. Finalized through community vote. **The first code change governed entirely by the community.**
+
+### What This Means
+
+From this point forward:
+- Every code change requires community review (os-git submit → vote → finalize)
+- Every contract upgrade requires a governance proposal (MigrateContract action)
+- Every parameter change requires a governance proposal
+- Every new subject requires a governance proposal
+- No human can bypass any of these. The admin key is inert.
+
+The system that was supposed to enable community-driven development now governs its own development through community governance. 18 days from `Initialized with Ignite CLI` to sovereignty.
+
+---
+
+## Session: Certification Design & Infrastructure (2026-03-23 — 2026-03-25)
+
+### Certification Contract Design
+
+Wrote brainstorm 015: certification contract — the registry of governance standards. Critic-chain validated over 6 rounds (59 issues: 4 FATAL + 23 HIGH + 32 MODERATE, all FATAL/HIGH resolved). Key architectural decisions:
+- Reference-counted expression dimensions (global per track)
+- Time-locked XP publish staking (26 epochs, anti-sybil)
+- Bidirectional conflict checking with 20-adoption limit
+- Enforcement ladder (Clean → Warning → Probation → Decertification)
+- Notice period for override weakening (prevents bait-and-switch)
+
+### XP Gates vs Certification Gates (Key Insight)
+
+User feedback on the maker space scenario revealed a fundamental distinction:
+- **XP gates** = "has this person created value?" → governance participation
+- **Certification gates** = "has this person demonstrated competence?" → equipment/role access
+
+Training a newcomer to use a laser cutter isn't value creation — it's competency attestation. The certification contract needs an attestation model: a trainer vouches for the newcomer's competency. Documented in brainstorm 015a.
+
+### Rust Vault P2P Content Transfer
+
+Implemented the missing piece: actual byte transfer between vault peers. Request-response protocol (`/vault/content/1.0.0`), auto-fetch on GossipSub announcement, hash verification before storage. Two daemons replicate 3 objects bidirectionally in <2 seconds.
+
+### os-git Improvements
+
+Renamed `os-git/` → `os_git/` (Python module naming), added `withdraw` command, fixed `finalize` local tracking (queries chain instead of parsing events), added TX sequence mismatch retry in `lib/cli.py`.
+
+### Full Lifecycle Re-Seed
+
+Re-exercised all lifecycle flows on the current chain:
+- Forum: 5 posts (3 approved, 1 held/audited, 1 approved via audit)
+- Auditing: Case 1 ran full commit-reveal cycle → approved (4 PASS votes, early consensus)
+- Governance: 3 proposals (create blockchain subject ✓, duplicate rejected ✓, reduce review period ✓)
+- Build sovereignty: 1 build spec, 2 builders, 2 attestations, 1 verified artifact
+- Expression: dimensions registered, expressions recorded
+
+### Infrastructure
+
+- Both chain node and vault daemon running as systemd user services with `Restart=always`
+- CONTRIBUTING.md written for onboarding new developers
+- Full system verification: 204 tests, 75 MCP tools, all services healthy
+
+### Commits
+
+- Chain repo: `76c6a98` through `256b419` (16 commits)
+- Spec repo: `431f682` through `f76872f` (5 commits)
+- Vault repo: `846dc7a` (P2P content transfer)
 
 ---
 
@@ -217,14 +300,28 @@ First real use of os-git to manage Open Systems through its own governance:
 | 012 | 2026-03-13 | Certification Anatomy & GER | 4 rounds, 28 issues |
 | 013 | 2026-03-21 | Expression UX Refinements | — |
 | 014 | 2026-03-22 | Git Governance | 5 rounds, 48 issues |
+| 015 | 2026-03-23 | Certification Contract Design | 6 rounds, 59 issues |
+| 015a | 2026-03-25 | Certification Scenarios Feedback | — |
+
+## Milestones
+
+| Date | Milestone |
+|------|-----------|
+| 2026-03-07 | Chain scaffold (Ignite CLI) |
+| 2026-03-09 | 9 contracts deployed, admin dissolved, full lifecycle verified |
+| 2026-03-21 | Expression contract + governance HasVoted |
+| 2026-03-22 | Git governance design, Rust vault daemon, projects migration, os-git CLI |
+| 2026-03-23 | Dogfood: first community-governed code change, P2P vault content transfer |
+| **2026-03-25** | **SOVEREIGNTY: admin dissolved on all 10 contracts, system self-governing** |
 
 ## Test Counts Over Time
 
-| Date | Unit | E2e | Total | Contracts |
-|------|------|-----|-------|-----------|
-| 2026-03-09 | 76 | 58 | 134 | 9 |
-| 2026-03-21 | 129 | 58 | 187 | 10 |
-| 2026-03-23 | 135 | 62 | 197 | 10 |
+| Date | Unit | E2e | Total | Contracts | Sovereign |
+|------|------|-----|-------|-----------|-----------|
+| 2026-03-09 | 76 | 58 | 134 | 9 | No (admin active) |
+| 2026-03-21 | 129 | 58 | 187 | 10 | No |
+| 2026-03-23 | 135 | 62 | 197 | 10 | No |
+| 2026-03-25 | 142 | 62 | 204 | 10 | **Yes** |
 
 ## Architecture
 
@@ -254,5 +351,6 @@ Chain (Cosmos SDK + CosmWasm)
 Vault (standalone Rust daemon)
     ├── Content-addressed store (SHA-256)
     ├── HTTP API (Axum)
-    └── P2P networking (libp2p)
+    ├── P2P networking (libp2p: GossipSub + mDNS + Kademlia)
+    └── Content transfer (request-response protocol, auto-fetch)
 ```
