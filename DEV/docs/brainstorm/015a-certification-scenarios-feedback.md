@@ -35,15 +35,78 @@ The XP gate in a certification is a **parameter** — it's configurable and cont
 
 The deeper question — how do sub-communities create their own credentialing systems that interface with the main XP system — is deferred.
 
-### Open Design Question
+### Resolution: XP Gates vs Certification Gates
 
-How do organizations create **internal credentials** (training certificates, skill assessments) that:
-- Are meaningful within the organization
-- May or may not be recognized by the broader network
-- Don't conflate "completed training" with "created value for the community"
-- Could potentially bridge to main-cluster XP through some recognition mechanism
+The initial design conflated two fundamentally different things:
 
-This connects to: cross-entity certification recognition (open question from 015), hierarchical governance clusters, and the Knowledge Network's role in validating credential equivalence across communities.
+- **XP** = "you've created value in this domain" (posts, contributions, auditing, curation)
+- **Training certification** = "you've demonstrated competence" (completed training, passed assessment)
+
+These are different questions. A brilliant engineer with 500 XP in rust has zero business using a laser cutter without training. A newcomer who just completed laser safety training should have access even with 0 XP.
+
+**The maker space gates should be certification requirements, not XP requirements:**
+
+```
+- laser_cutter_access: requires adoption of "Laser Operation v2" (not 15 XP)
+- cnc_mill_access: requires adoption of "CNC Machining v1"
+- 3d_printer_access: requires adoption of "3D Printing Basics v1"
+```
+
+Training certifications are published standards. The training process:
+1. Trainer publishes "Laser Operation v2" certification (defines competency requirements)
+2. Newcomer completes training (in person, at the makerspace)
+3. Trainer attests competency — the newcomer adopts "Laser Operation v2" with trainer attestation
+4. The makerspace's "Maker Space Safety" cert checks: does this person hold "Laser Operation v2"? If yes → access granted.
+
+This is exactly how real-world certifications work: you take a course, the instructor signs off, you're certified. No value creation required. No chicken-and-egg problem.
+
+### Two Types of Gates
+
+This creates a clean distinction:
+
+| Gate Type | What It Checks | Examples |
+|-----------|---------------|----------|
+| **XP gate** | Has this person created verified value? | Governance voting, proposal submission, auditor eligibility |
+| **Certification gate** | Has this person demonstrated competence? | Equipment access, role eligibility, training prerequisites |
+
+Both are on-chain. Both are verifiable. But they measure different things and should never be confused.
+
+### Attestation Model
+
+Training certification adoption needs an **attestation** — someone vouching that you meet the requirements. This is a new mechanism for the certification contract:
+
+```rust
+AdoptCertification {
+    cert_id: u64,
+    parameter_overrides: Vec<ParameterOverride>,
+    attestor: Option<String>,  // address of the person attesting competency
+}
+```
+
+When `attestor` is Some:
+- The cert must be marked as `requires_attestation: true`
+- The attestor must themselves hold the cert (or be registered as a trainer)
+- The attestor's address is recorded in the adoption record
+- The attestor is accountable — if the person they attested for causes a safety incident, the attestor's track record is affected
+
+When `attestor` is None:
+- Self-adoption (for governance certifications, org-level standards)
+- No competency gate — the adopter declares their own commitment
+
+### What This Means for the Certification Contract
+
+The certification struct needs:
+- `requires_attestation: bool` — if true, adoption requires an attestor
+- The adoption struct needs: `attestor: Option<Addr>` — who attested competency
+
+This is a small addition to brainstorm 015 that resolves the XP-gate chicken-and-egg problem entirely.
+
+### Open Design Questions (Deferred)
+
+1. **Trainer registration.** Who can attest? Anyone who holds the cert? Or a separate "trainer" role? Probably: anyone who holds the cert at a higher level (or longer tenure) can attest for newcomers.
+2. **Attestation revocation.** Can an attestor revoke their attestation? (e.g., "I no longer vouch for this person's competency after seeing them misuse equipment")
+3. **Cross-entity certification recognition.** "Laser certified at MakerSpace A → recognized at MakerSpace B." This is the `Requirement` mechanism: MakerSpace B's safety cert can require "Laser Operation v2" — if you hold it from MakerSpace A, the requirement is satisfied regardless of where you got it.
+4. **Sub-cluster XP.** The hierarchical cluster question remains for future brainstorming, but it's now clearly SEPARATE from the certification/training question. XP = value creation. Certs = competency. They don't need to mix.
 
 ---
 
