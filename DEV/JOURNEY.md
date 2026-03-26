@@ -53,6 +53,64 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ## Session: Chain Scaffold & First Contracts (2026-03-07)
 
+## Session: Decentralized Web Access + Browser Participation (2026-03-25)
+
+The session after sovereignty. Built the full decentralized web access layer — the path for anyone on any device to participate in Open Systems from a browser.
+
+### Certification Contract Design
+
+Wrote brainstorm 015 (certification registry) with 6-round critic chain (59 issues). Key insight from user feedback: XP gates (value creation) and certification gates (competency attestation) are fundamentally different. Training ≠ value creation. Added attestation model. Documented in 015a.
+
+### Decentralized Web Access (Brainstorm 016)
+
+Designed and critic-chain validated (5 rounds, 33 issues) the system for browser-based participation. Core idea: the web app IS vault content — content-addressed, replicated, governed. Minimal bootstrap loader for first-load verification. PoW for spam defense. Service worker for offline + governed updates. Peer registry on-chain for decentralized discovery.
+
+### Implementation (7 Slices + 5 Participation Tasks)
+
+Built and deployed all 7 slices of the web access layer:
+
+1. **Vault `/app/` route** — manifest-based web serving with MIME types, SPA fallback, CSP headers, immutable caching. 30 Rust tests.
+2. **Frontend SPA** — vanilla JS (no deps, no npm), dark theme, client-side routing with base-path detection. Dashboard, Subjects, Posts, Governance, Projects pages.
+3. **Governance contract migration** — deployed on-chain via governance proposal #5. Added peer registry (RegisterPeer, RenewPeer, DeregisterPeer, CleanupPeers with lazy expiry) and UpdateAppHash proposal action with AppConfig state (manifest hash, monotonic version, proposal ID).
+4. **Browser chain client** — minimal JS LCD client. All pages show live chain data (6 subjects, 3 posts, 5 proposals, 2 projects). LCD proxy through vault (`/v1/chain/*` → localhost:1317) so remote users only need one URL.
+5. **Service worker** — cache-first for `/app/` routes, offline fallback, manifest hash pinning in IndexedDB, governed update detection with anti-downgrade, update banner UI.
+6. **PoW ante handler** — Go module (`x/pow/`) with SHA-256 proof-of-work. 0-XP accounts require 16 leading zero bits (~2s). Accounts with XP exempt. 4 Go tests. Browser solver (`pow.js`). Binary builds but deployment blocked by x/upgrade authority mismatch.
+7. **Bootstrap loader** — ~40 lines of verification logic. Fetches manifest, verifies every file's SHA-256, stores verification in IndexedDB, redirects to app. External JS (CSP compliant).
+
+Additional participation infrastructure:
+- **LCD proxy on vault** — `/v1/chain/*` forwards to localhost:1317. One tunnel, one port.
+- **Root redirect** — `GET /` redirects to current app. `PUT/GET /v1/app-hash` manages default.
+- **Real secp256k1 identity** — vendored noble-secp256k1 v3.0.0 (~5KB). Browser generates real keypairs, encrypts with user password (PBKDF2 + AES-GCM), stores in localStorage. Real bech32 `os1...` addresses.
+- **CSP-safe event handling** — all button handlers use `data-action` delegation, no inline onclick (required by `script-src 'self'`).
+- **Cloudflare tunnel** — `cloudflared tunnel --url http://localhost:9191` gives instant public HTTPS URL.
+
+### On-Chain Deployments
+
+- **Governance contract** migrated to code ID 11 (proposal #5, approved)
+- **1 peer registered** (this node: vault + RPC URLs)
+- **AppConfig v1** set (proposal #6, approved): manifest hash on-chain
+- **PoW upgrade proposal #8** blocked: x/upgrade authority expects native gov module address, not CosmWasm governance contract. PoW code ready, deployment deferred.
+
+### What's Live
+
+The web app is accessible at `http://localhost:9191/` (redirects to current manifest). Via Cloudflare tunnel, accessible from anywhere. Shows live chain data: 6 subjects, forum posts, 8 governance proposals, 2 community-governed projects. Users can create identities with real secp256k1 keypairs.
+
+### What's Next
+
+TX building + signing + broadcast from the browser. Once done, users can create posts, vote on proposals, and earn XP — completing the participation loop.
+
+### Commits
+
+- Chain repo: `60a604f` through `eceaf42` (10 commits)
+- Vault repo: `e84f208` through `cffc87b` (4 commits)
+- Spec repo: `3f3becd` through `787e123` (5 commits)
+
+### Cross-Agent Coordination
+
+KN agent completed Vault integration (vault_client.rs, ContentRef on nodes, mcp_store_content + mcp_fetch_content tools). Integration test passed: store/fetch round-trip verified. KN agent now building Phase 1 of KG ↔ chain integration (community KG, publish-to-forum flow).
+
+---
+
 ## Session: Sovereignty Achieved (2026-03-25)
 
 The milestone. Open Systems became self-governing.
@@ -302,6 +360,7 @@ First real use of os-git to manage Open Systems through its own governance:
 | 014 | 2026-03-22 | Git Governance | 5 rounds, 48 issues |
 | 015 | 2026-03-23 | Certification Contract Design | 6 rounds, 59 issues |
 | 015a | 2026-03-25 | Certification Scenarios Feedback | — |
+| 016 | 2026-03-25 | Decentralized Web Access | 5 rounds, 33 issues |
 
 ## Milestones
 
@@ -313,6 +372,7 @@ First real use of os-git to manage Open Systems through its own governance:
 | 2026-03-22 | Git governance design, Rust vault daemon, projects migration, os-git CLI |
 | 2026-03-23 | Dogfood: first community-governed code change, P2P vault content transfer |
 | **2026-03-25** | **SOVEREIGNTY: admin dissolved on all 10 contracts, system self-governing** |
+| **2026-03-25** | **WEB ACCESS: browser-based participation, vault-served SPA with live chain data** |
 
 ## Test Counts Over Time
 
@@ -322,6 +382,7 @@ First real use of os-git to manage Open Systems through its own governance:
 | 2026-03-21 | 129 | 58 | 187 | 10 | No |
 | 2026-03-23 | 135 | 62 | 197 | 10 | No |
 | 2026-03-25 | 142 | 62 | 204 | 10 | **Yes** |
+| 2026-03-25 | 142+30 | 62 | 234+ | 10+gov migrated | Yes + web app |
 
 ## Architecture
 
