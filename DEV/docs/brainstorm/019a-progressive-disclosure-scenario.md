@@ -91,16 +91,16 @@ A small animation: **+0.5 XP in rust** appears briefly and fades.
 
 Jake scrolls his feed and sees something different — a post with a subtle blue border:
 
-> **Proposal: Add "3d-printing" subject**
-> *Submitted by os1a7f...3e2d · 3 votes so far*
+> **Proposal: Reduce review period in `rust` from 24h to 12h**
+> *Submitted by os1a7f...3e2d · 5 votes so far*
 
-He taps it. It's a governance proposal. Someone wants to create a new subject. He can see the votes, the description, the reasoning.
+He taps it. Someone is proposing a change to how the rust subject works — shorter review windows for posts. He's been posting and reviewing in rust for two weeks. He has an opinion on this.
 
 Jake has accumulated enough total XP across subjects that he's earned governance weight (every 100 subject XP = 1 governance XP, computed automatically). A "Vote" button is visible.
 
-He votes yes.
+He votes yes. He thinks 12 hours is plenty.
 
-He never navigated to a "Governance" tab. He never read a guide about how governance works. The proposal was just a post in his feed, and voting was just tapping a button.
+He never navigated to a "Governance" tab. He never read a guide about how governance works. The proposal was just a post in his feed about something he cared about, and voting was just tapping a button.
 
 ---
 
