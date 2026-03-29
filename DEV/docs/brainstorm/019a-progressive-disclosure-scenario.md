@@ -104,25 +104,10 @@ He never navigated to a "Governance" tab. He never read a guide about how govern
 
 ---
 
-## Day 20 — Vouching
-
-Jake reads a really good post by a newcomer — someone with 0 XP wrote a detailed guide about rust macros. He notices a new option he hasn't seen before:
-
-> **Vouch** — endorse this post for review
-
-He taps it. 1 XP staked. He's endorsing that this post belongs in `rust` and doesn't violate rules.
-
-A random auditor reviews the post and confirms it's legitimate. Jake's stake returns. The newcomer earns their first XP from the upvotes that follow.
-
-Jake just helped someone's work get noticed. The vouch didn't grant XP directly — it signaled that the post deserved attention. The community's upvotes did the rest.
-
----
-
 ## What Jake Never Had to Learn Upfront
 
 - What XP is (he discovered it when someone upvoted his post)
 - What auditing is (he opted in after understanding XP, did it before knowing the word)
-- What vouching is (it appeared when he had enough XP to use it)
 - What governance is (proposals were just posts in his feed)
 - What subjects are (they were just tags he tapped)
 - How the blockchain works (he never saw block heights or chain IDs)
@@ -135,16 +120,16 @@ Every concept was introduced **the moment it became relevant to him**, through a
 ## What the System Knows About Jake
 
 - He's a reliable reviewer in rust and woodworking (he opted in after understanding the system)
-- He endorses good content (his vouch history)
+- He upvotes good content (his vote history)
 - His identity is anonymous (just a keypair in his browser)
-- His XP was earned entirely through verified work — no admin granted it, no algorithm guessed it
+- His XP was earned through community upvotes and audit participation — no admin granted it, no algorithm guessed it
 - His governance weight was computed from his participation, not assigned
 
 ---
 
 ## Design Principles This Scenario Demonstrates
 
-1. **If you can't do it, you can't see it.** No upvote buttons at 0 XP. No governance voting without governance XP. No vouching until you've earned enough.
+1. **If you can't do it, you can't see it.** No upvote buttons at 0 XP. No governance voting without governance XP.
 2. **No subject selection at signup.** That comes later, when the user understands what they're opting into.
 3. **Informed consent at point of action.** XP is explained the first time you earn it. Auditing is explained when you opt in. Not before.
 4. **Auditors are referees, not critics.** They check rule compliance and subject relevance. Value is decided by upvotes.
