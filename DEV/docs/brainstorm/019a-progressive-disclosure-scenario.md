@@ -83,7 +83,7 @@ He taps it. He sees a post someone else wrote — a tutorial about error handlin
 
 Not "is this valuable?" — that's for upvotes. The audit asks: does it belong here, and does it follow the rules? Jake reads it. Legitimate rust content, no spam, no tag abuse. He taps "Approve."
 
-A small animation: **+0.5 XP in rust** appears briefly and fades.
+A small animation: **+1 XP in rust** appears briefly and fades.
 
 ---
 
