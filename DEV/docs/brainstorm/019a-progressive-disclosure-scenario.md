@@ -89,18 +89,18 @@ A small animation: **+1 XP in rust** appears briefly and fades.
 
 ## Day 14 — Discovering Governance
 
-Jake scrolls his feed and sees something different — a post with a subtle blue border:
+Jake opens the app and notices something new — a "Governance" tab has appeared in the navigation. It wasn't there before. It appeared because he's accumulated enough total XP across subjects to earn governance weight (every 100 subject XP = 1 governance XP, computed automatically).
+
+He taps it. A list of active proposals. One catches his eye:
 
 > **Proposal: Reduce review period in `rust` from 24h to 12h**
 > *Submitted by os1a7f...3e2d · 5 votes so far*
 
 He taps it. Someone is proposing a change to how the rust subject works — shorter review windows for posts. He's been posting and reviewing in rust for two weeks. He has an opinion on this.
 
-Jake has accumulated enough total XP across subjects that he's earned governance weight (every 100 subject XP = 1 governance XP, computed automatically). A "Vote" button is visible.
-
 He votes yes. He thinks 12 hours is plenty.
 
-He never navigated to a "Governance" tab. He never read a guide about how governance works. The proposal was just a post in his feed about something he cared about, and voting was just tapping a button.
+No one explained governance to him. The tab appeared when he was ready for it, and the proposals were clear enough to act on.
 
 ---
 
