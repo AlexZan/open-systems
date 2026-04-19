@@ -65,9 +65,25 @@ The experience contract notifies the subject contract for exactly one tag. No lo
 
 ## 4. Proposed design
 
+### 4.0 Activation gate — code ships now, economic activation waits
+
+This is a prerequisite for every other subsection. The subject + experience contract changes below ship as code, but their propagation behavior is guarded by an on-chain `propagation_enabled: Item<bool>` in the experience contract, **default `false`**. When the flag is false, `MintExperience` behaves exactly as today: single-subject only, no ancestor walk, no parent reads.
+
+`SetPropagationEnabled(true)` does **not** rely on human trust that the prerequisites are met. The experience contract asserts all of the following on-chain before accepting the flip, and rejects otherwise:
+
+1. **Audit gate is registered AND identity-checked.** `AUDIT_GATE_CONTRACT: Item<Option<Addr>>` is `Some(addr)`, AND a cw2 `ContractInfo` query to that address returns a `contract` field matching the expected `"crates.io:os-forum-audit-gate"`. A stub or malicious address that merely exists will not self-identify correctly and fails the check. Version pinning (minimum compatible version) is enforced the same way.
+2. **Tree is non-trivially seeded.** Cross-contract query to the subject contract confirms:
+   - At least `MIN_SEEDED_PARENTS = 3` subjects have `parent_tag.is_some()`, AND
+   - At least one of those parented subjects has depth ≥ 2 (i.e. its own parent is also parented, proving a real hierarchy exists and not just three flat adoptions).
+3. **Bootstrap window must already be closed on any flip after the first.** For the first-ever flip to `true`, this is vacuously true because the flip closes the window as part of its own commit (via atomic sub-message, §5). For every subsequent `true`-flip (after an intervening `false`-flip), `BOOTSTRAP_WINDOW_OPEN == false` is an explicit precondition. This enforces the invariant "once propagation has ever been true, bootstrap is closed forever" at the flag contract directly, not by chain of sub-message reliance.
+
+Flipping back to `false` is always permitted (governance can disable propagation without prerequisites). Each flip emits an event and advances a monotonic `PROPAGATION_REGIME: Item<u32>` counter so historical mint transactions can be attributed to a specific regime window (see §5, `ExperienceTransaction.regime`).
+
+**Concurrent seed/flip.** CosmWasm serializes tx execution within a block. An `AdminSeedParent` tx and a `SetPropagationEnabled(true)` tx in the same block execute in block-included order: seed-first → seed succeeds, flip sees updated parented count; flip-first → flip's atomic commit closes the window, subsequent seed tx fails with `BootstrapWindowClosed`. Both orderings are well-defined; clients should not assume either.
+
 ### 4.1 Propagation rule — primary tag only, geometric decay
 
-Each post declares **one primary tag** (the first tag). Secondary tags exist for discoverability but earn no XP. When a contribution mints `N` XP on the primary tag `t`:
+Once `propagation_enabled = true`, each post declares **one primary tag** (the first tag, enforced by the forum contract per §5 Prerequisites). Secondary tags exist for discoverability but earn no XP. When a contribution mints `N` XP on the primary tag `t`:
 
 - Walk up `t.parent_tag` chain.
 - Level 0 (leaf `t`): user gets `N` XP, capped at the subject's taper factor (existing genesis mechanic).
@@ -81,7 +97,8 @@ Integer math: `amount_at_level_k = N >> k` (right shift, saturating at 0). With 
 
 - **Honest declaration.** Forcing a primary tag makes tag choice accountable. The curator-audit gate has one claim to verify instead of a set.
 - **No multi-tag farming.** Secondary tags earn no XP, so tagging `finance, waybar, cooking` on a bug is just spam, not a payday.
-- **Bounded total issuance.** Geometric series sums to `< 2N` across infinite depth — no matter the tree, the chain mints at most `2N − 1` XP for a payout of `N`. Auditor models the system economics without worrying about tree shape.
+- **Bounded per-mint issuance.** Geometric series sums to `< 2N` — this is an **upper bound**. Per-level tapers (when a level is still in genesis) and orphan-roots (walk stops early) only reduce actual issuance below the bound; they never exceed it. Auditors model the system economics without worrying about tree shape.
+- **Per-mint bound, not per-actor.** One actor can still mint multiple times across distinct posts. That is precisely the attack the curator-audit-gate (sibling effort) exists to bound — rate-limiting happens at post-approval, not at XP-mint. This design does not try to solve multi-post farming inside propagation; propagation only guarantees the per-mint bound.
 - **Governance-tunable later.** The decay base (currently 2, i.e. halving) can be moved to on-chain state once we have evidence of need.
 
 Rejected alternatives:
@@ -100,6 +117,7 @@ Rejected alternatives:
   - Defer. Frontend can display cross-links as metadata without the contract caring.
 - **Depth cap: 8.** At `CreateSubject`, walk up from claimed parent; if depth ≥ 8, reject. Bounds gas cost of propagation (~8 contract-internal calls per mint). Arbitrary but far beyond any real taxonomy.
 - **Cycle check.** Walk up from claimed parent; if the walk revisits the new tag, reject. Cheap, same walk as the depth check.
+- **Depth is monotonic at a subject.** Because `parent_tag` is immutable after creation (§4.4), a subject's distance to root is fixed at create time. New children can be added under it, extending the tree *downward*, but a mint walks parents (upward), so newly-added descendants can never affect an existing subject's mint walk. The create-time depth-8 check is therefore sound forever, not just at the instant of creation — no runtime re-validation needed, no concurrent mint/create race.
 
 Add these checks to `execute_create_subject`:
 
@@ -119,59 +137,135 @@ while let Some(p) = cur {
 }
 ```
 
-### 4.3 Orphan-fix — two-phase
+### 4.3 Orphan-fix — bootstrap + audit-gated adoption
 
-Phase 1 (this effort): leave `EnsureSubjectsExist` alone. Auto-created subjects stay at the root. The tree is sparse — only subjects with deliberately-set parents form a hierarchy. No regression on today's behavior.
+There is a bootstrapping circularity: propagation is gated on a seed parent-map existing, but the sibling effort's `ProposeParent` hasn't shipped when we need to seed. This design breaks the circularity with a two-window model:
 
-Phase 2 (sibling effort `forum-tag-curator-audit-gate`): adds `ProposeParent { tag, parent }` as a curator-gated flow. Curators with XP in the claimed parent can set or change a subject's parent. Parenthood becomes a separate, audited governance action, which also gives us a natural insertion point for abuse checks.
+**Bootstrap window (this effort).** Subject contract gains `AdminSeedParent { tag, parent }`, callable by the admin OR by an authorized caller (governance). Semantics:
 
-This split is the reason the two efforts are siblings: the propagation math can ship today even with a flat tree (no-op for orphans), and the tree fills in as curators wire subjects together.
+- Only valid when `Subject.parent_tag.is_none()` — pure orphan adoption, no reparenting.
+- Cycle and depth checks run same as `CreateSubject` (§4.2).
+- Available *only* during the bootstrap window: closes permanently the first time `propagation_enabled` flips to `true` (or explicitly via `CloseBootstrapWindow`, admin-or-governance, irreversible).
 
-### 4.4 Mutability — parent is immutable after creation (for now)
+This lets governance seed the initial parent-map before propagation activates, using the trusted governance path rather than requiring the sibling contract to be deployed first.
 
-Once set, `Subject.parent_tag` cannot change without a governance proposal. Rationale: changing a parent mid-flight retroactively shifts who-earned-XP-from-what-ancestor, which is a nightmare for audit trails. If we need a `ReparentSubject` later, it's a governance-only call that:
+**Post-bootstrap window (sibling effort).** Once the bootstrap window is closed, the ONLY way `Subject.parent_tag` ever becomes `Some` is via the sibling `forum-tag-curator-audit-gate` effort's `ProposeParent` flow, which is gated by:
 
-- emits an event logging the old and new parent,
-- does **not** backfill historical balances (past grants stay with whatever chain existed at the time),
-- applies only to future `MintExperience` calls.
+- Proposer must be an XP-holder in a plausible parent (the sibling effort defines "plausible").
+- Proposal enters a challenge window during which any XP-holder in a competing plausible parent can counter-propose.
+- Unchallenged at deadline → adoption finalizes.
+- Challenged → resolution via the audit contract's commit-reveal jury, with stake on the losing side slashed.
 
-Explicit decision to defer: the curator-audit-gate effort will introduce `ProposeParent` for **new** parent assignments (orphans → parented). Reparenting (changing an existing parent) is a separate later question.
+The challenge window directly addresses the adoption-race critique: a single curator with XP in `finance` cannot lock `waybar → finance` by racing a `ProposeParent`, because other XP-holders have a challenge window to respond, and the ultimate resolution is an audit-jury vote rather than first-mover-wins.
+
+For `EnsureSubjectsExist` (auto-created orphans from posts): no change. Auto-created subjects stay at the root until seeded (bootstrap window) or adopted (post-bootstrap).
+
+### 4.4 Mutability — adoption-only; no reparenting; deprecated ≠ locked
+
+Three distinct states for `Subject.parent_tag`, kept clean:
+
+- **Orphan** (`None`): subject exists, no parent set. Can be adopted exactly once, via the mechanisms in §4.3.
+- **Parented** (`Some(p)`): immutable. Reparenting (`Some → Some'`) is **out of scope for this effort** and is intentionally locked out at the contract level. Changing a parent retroactively shifts who-earned-XP-from-what-ancestor, poisoning the audit trail. If a real reparenting need ever arises, it's a future effort with governance-only mechanics, explicit event logging, and explicit no-backfill semantics.
+- **Deprecated** (`deprecated_at: Some(t)`): orthogonal to `parent_tag`. A deprecated subject keeps its parent link intact (so descendants' walks still traverse through it), but does not accumulate new `total_experience` or `total_users` counts. See §4.5 for deprecation semantics during mint.
+
+This structure resolves the ambiguity: adoption is not mutation, and deprecation is not "gone" — it's "frozen."
+
+### 4.5 Deprecation semantics during mint — tree-cut, not skip
+
+Deprecation is a structural signal ("this category is no longer meaningful"), not just a filter. Propagating through a deprecated ancestor would keep that severed category alive by crediting its own ancestors via its descendants. The cleaner semantic is **tree-cut at first deprecated ancestor**:
+
+- **Leaf (primary tag) is deprecated:** mint completes as a no-op (zero XP written anywhere, transaction succeeds with a `deprecated_leaf` event). Posts with frozen `primary_tag` pointing at a later-deprecated subject do not brick; they simply stop earning.
+- **Mid-chain ancestor is deprecated:** the walk halts at that ancestor. Levels strictly above the deprecated ancestor do not receive XP. Levels strictly below still receive their (pre-cut) share.
+- Rationale: if `gui` is deprecated between `waybar` and `os`, then `os` should not receive XP via `waybar`-contributions funneling through a severed category. `waybar` still gets its own direct XP; the cut is real.
+- `AddTotalExperienceBatch` (§5) applies the batch as filtered by the experience contract (which does the walk and the cut); the subject contract receives only non-deprecated entries up to the cut.
+
+**Invariant: subjects are create-only.** Deprecation is the terminal state for a subject — there is no "delete subject" operation anywhere in the contract surface. This invariant is what lets mint treat `missing` as a bug (transaction-reverting) while `deprecated` is normal (tree-cut). No future effort should add subject deletion without revisiting the whole propagation path. If someone ever needs to "really remove" a subject, the answer is a migration that never mutates existing subjects — not deletion.
+
+This directly addresses the round-3 critiques: primary-tag freeze + deprecation does not permanently fail mints; deprecation severs propagation paths consistently with its meaning; missing-ancestor is unambiguously a bug because deletion is forbidden.
 
 ## 5. Implementation sketch
 
-Two contract changes:
+### Prerequisites (must land before `propagation_enabled = true`)
+
+1. **Forum-contract primary-tag plumbing.** The post schema today stores `tags: Vec<String>` with implicit first-is-primary ordering enforced nowhere. Change: the forum contract records the primary tag as an explicit `primary_tag: String` on each post (derived once from `tags[0]` at post creation, then frozen). `MintExperience` calls pass `primary_tag`, not `tags[0]`. Frontend and vault daemon are updated to match. Without this, propagation's "primary tag" concept relies on ordering conventions that no contract enforces.
+2. **Seed parent-map governance proposal.** Before flipping the flag, a governance proposal populates parents for the existing top subjects (rust, cosmwasm, governance, cooking, gardening, etc.) via `ProposeParent` calls from the curator-audit-gate sibling effort. Otherwise flipping the flag changes nothing visible on the current 6-orphan tree.
+3. **Curator-audit gate deployed.** Sibling effort `forum-tag-curator-audit-gate`. Without it, propagation opens the multi-post-farming window flagged in round-1 critique H4.
+
+### Contract changes
 
 **`subject` contract:**
-- Add `CycleDetected` and `TreeTooDeep` errors.
-- Add the walk-check to `execute_create_subject`.
-- Add a query `QueryMsg::AncestorChain { tag: String } -> Vec<String>` returning the ordered ancestor list (leaf → root). Used by the experience contract for propagation. Bounded by `MAX_TAG_DEPTH`.
-- Add `InternalMsg::AddTotalExperienceWithPropagation { tag, amount }` that walks ancestors internally and updates `total_experience` on each, OR keep the walk on the experience-contract side. (Design choice: do it on the **experience** side — it already owns the user-balance ledger and knows the user address. Subject contract stays a passive aggregator.)
+- Add `CycleDetected`, `TreeTooDeep`, `AlreadyParented`, `BootstrapWindowClosed` errors.
+- Add the walk-check to `execute_create_subject` (§4.2).
+- Add a query `QueryMsg::AncestorChain { tag: String } -> AncestorChainResponse` returning the ordered ancestor list plus each ancestor's `taper_factor_bps` and `deprecated` flag (all in one query to avoid multiple round-trips during a mint). Bounded by `MAX_TAG_DEPTH`.
+- Add `BOOTSTRAP_WINDOW_OPEN: Item<bool>`, default `true`.
+- Add `ExecuteMsg::AdminSeedParent { tag, parent }` (admin-or-authorized-caller; valid only when bootstrap window is open, target subject is orphan, cycle + depth checks pass).
+- Add `ExecuteMsg::CloseBootstrapWindow {}` (admin-or-authorized-caller, irreversible).
+- The experience contract's `SetPropagationEnabled(true)` handler also triggers a `CloseBootstrapWindow` sub-message automatically, so the two can never drift.
+- Add `InternalMsg::AddTotalExperienceBatch { updates: Vec<(String, u64)> }` — the subject contract applies updates to non-deprecated entries and silently skips deprecated ones (rather than failing the batch, per §4.5). Still fails if any tag is missing (missing ≠ deprecated), which indicates a real bug.
 
 **`experience` contract:**
+- Add `PROPAGATION_ENABLED: Item<bool>`, default false.
+- Add `PROPAGATION_REGIME: Item<u32>`, default 0. Incremented on every flip.
+- Add `AUDIT_GATE_CONTRACT: Item<Option<Addr>>`, default None.
+- Setter: `SetAuditGate { addr: String }`, admin-or-authorized-caller.
+- Setter: `SetPropagationEnabled { enabled: bool }`, admin-or-authorized-caller. Flipping to `true` requires (per §4.0):
+  - `AUDIT_GATE_CONTRACT.is_some()` AND cw2 `ContractInfo` query to that address returns `contract == "crates.io:os-forum-audit-gate"` with compatible version.
+  - Subject contract reports ≥ `MIN_SEEDED_PARENTS = 3` parented subjects AND at least one parented subject at depth ≥ 2.
+  - For second and subsequent true-flips: `BOOTSTRAP_WINDOW_OPEN == false` must already hold.
+  - On success: increments `PROPAGATION_REGIME`, emits `propagation_enabled` event, issues a `CloseBootstrapWindow` sub-message to the subject contract using `SubMsg::new(...)` (default `ReplyOn::Never`). CosmWasm semantics: if the sub-message fails, the parent tx reverts atomically — the flip does not commit without the window being closed. No `reply_on_error` handler, no suppression: the default is the correct semantics here.
+- Flipping to `false` has no preconditions (governance can always disable).
+- Extend `ExperienceTransaction` with:
+  - `regime: u32` — propagation-regime counter at mint time.
+  - `ancestor_snapshot: Vec<String>` — the ordered ancestor chain (post tree-cut per §4.5) used for this mint. Bounded at `MAX_TAG_DEPTH = 8`. Gives auditors O(1) reconstruction independent of later tree mutations. Costs up to 8 strings per mint record; acceptable.
+
 - In `mint_experience_internal`:
-  1. Query `AncestorChain` from the subject contract for the target `subject`.
-  2. Loop over ancestors; for each level `k` with `amount_k = N >> k`, skip if 0, else:
-     - Update `BALANCES[(user, ancestor_tag)]` (same logic as today, single write).
-     - Record an `ExperienceTransaction` per level for full audit trail.
-     - Emit an `AddTotalExperience` sub-message per level.
-  3. `SUBJECT_USERS[(ancestor_tag, user)] = ()` for each level to support `BalancesBySubject` queries.
+  1. If `PROPAGATION_ENABLED == false`: existing single-subject path, unchanged (but now also writes `regime: current_regime` to the transaction record). Return.
+  2. Query `AncestorChain` from the subject contract (one read, returns leaf-through-root with taper + deprecated flags).
+  3. If leaf is deprecated (§4.5): record a zero-amount transaction with `deprecated_leaf` marker and empty ancestor snapshot, skip all writes, return successfully. Mint does not revert.
+  4. **Apply tree-cut** (§4.5): walk the returned chain leaf→root; the moment a deprecated ancestor is encountered, truncate the chain at the level immediately below. All levels at or above the first deprecated ancestor are excluded from writes.
+  5. **Read-all-then-write-all ordering**: build the full per-level write list in memory using the taper factors from the query response (a single block-consistent snapshot), skipping zero-amount levels. Only after the full list is computed, begin writes. This removes any taper-read race across the batch.
+  6. **In-contract synchronous writes**: for each non-skipped entry, update `BALANCES[(user, ancestor_tag)]`, `SUBJECT_USERS[(ancestor_tag, user)]`, record an `ExperienceTransaction` with `regime: current_regime` and the snapshot of the truncated ancestor chain.
+  7. **One** `AddTotalExperienceBatch` sub-message to the subject contract with the filtered `(tag, amount)` list. Since the experience contract has already applied the tree-cut, no entry in the batch should be deprecated; the subject contract still double-checks and skips any straggler (defense in depth). If any tag in the batch is genuinely missing (impossible per §4.5 create-only invariant, but defensive), the whole tx reverts atomically — BALANCES writes roll back in the same tx.
 
-**Gas profile.** With `MAX_TAG_DEPTH = 8` and current bug-payout `N = 1`, only the leaf actually gets XP (the shift zeroes out at level 1). Cost is dominated by the ancestor-chain query (one read per level, 8 reads worst-case). For larger payouts (`N = 8`), all 8 levels get balance writes — still bounded.
+### Atomicity reasoning
 
-**Tests:**
-- `mint_experience` with primary-only propagation; check all ancestors got their share.
-- Depth cap boundary (depth 8 ok, depth 9 rejects).
+CosmWasm serializes message execution within a transaction and transactions within a block. Sub-messages execute synchronously from the caller's point of view unless explicit reply semantics are used. The batched approach guarantees atomicity by construction:
+
+- The `AncestorChain` query and all `BALANCES` writes happen in one synchronous path inside `mint_experience_internal`. No external messages between them.
+- The single `AddTotalExperienceBatch` sub-message is the only external effect. If it fails, the parent transaction reverts, and all `BALANCES` changes revert with it.
+- Between the `AncestorChain` query (step 2) and the sub-message (step 6), no other transaction can execute — CosmWasm serializes tx execution within a block and this entire flow is within one tx.
+- Deprecation or tree mutation that could affect the walk can only happen in a *different* tx in the same or later block. Different tx = ordered after this one = cannot affect this tx's snapshot.
+
+### Gas profile
+
+- `propagation_enabled = false` (default): identical to today — one BALANCES write, one `AddTotalExperience` sub-message. Zero added cost.
+- `propagation_enabled = true`, orphan leaf (no parent): one `AncestorChain` query returning empty, one BALANCES write, one `AddTotalExperienceBatch` with one entry. +1 query cost (cheap: single `SUBJECTS.load`).
+- `propagation_enabled = true`, depth-8 leaf, `N ≥ 8`: one `AncestorChain` query (internally up to 8 `SUBJECTS.load` calls), up to 8 BALANCES writes, one batched sub-message with 8 entries. Each mint therefore costs up to 8 chain storage reads on the subject contract plus the experience-contract writes. At scale (thousands of mints per day), this is the load-bearing cost item; the depth cap of 8 is chosen so it stays bounded. If profiling later shows `AncestorChain` in the hot path, caching ancestry for immutable-parented subjects is a cheap optimisation (since parents are frozen post-adoption).
+
+### Tests
+
+- `propagation_enabled = false` (default): mint behaves exactly as today. Regression guard.
+- `propagation_enabled = true`, `N = 1`: only leaf gets XP, no zero-amount writes to ancestors.
+- `propagation_enabled = true`, `N = 8`: every level 0..7 gets the expected shifted amount.
+- Depth cap boundary (depth 8 ok, depth 9 rejects at `CreateSubject`).
 - Cycle detection (`CreateSubject { tag: "a", parent_tag: Some("b") }` with `b → a` pre-existing).
-- Orphan case: `parent_tag = None` leaf mints as today with no propagation.
-- `N = 1` case: only leaf gets XP, no zero-amount writes to ancestors.
+- **Deprecated leaf:** `primary_tag` points to a deprecated subject → mint returns success with zero XP, `deprecated_leaf` event, no reverts.
+- **Deprecated mid-chain ancestor:** walk skips it, other ancestors still receive their share, no revert.
+- **Missing ancestor (bug):** `AddTotalExperienceBatch` rejects for a genuinely missing tag → whole mint reverts, BALANCES unchanged.
+- `SetPropagationEnabled(true)` **precondition enforcement:** rejects when audit gate is unset; rejects when fewer than 3 subjects have non-null parent; succeeds otherwise and auto-closes bootstrap window.
+- `SetPropagationEnabled(false)` always permitted regardless of preconditions.
+- `PROPAGATION_REGIME` counter increments on each flip and is recorded on every `ExperienceTransaction`.
+- `AdminSeedParent` rejects after bootstrap window closes; rejects when target subject already parented; rejects on cycle/depth violation.
+- Bootstrap window closes exactly once and stays closed (idempotent `CloseBootstrapWindow`).
+- `ProposeParent` is not defined in this contract (sibling effort); sibling effort's tests cover the challenge-window flow.
 
 ## 6. Open questions (for critic-chain / sibling efforts)
 
-- **Q1: Who votes weight for governance proposals scoped to a parent subject?** If `gui` has no direct XP holders but inherits 100 XP across all `waybar` holders, does voting on `gui`-level rules tally direct `gui` XP only, or inherited too? (Likely: inherited, to match the propagation intent. But this cross-cuts into governance contract logic.)
-- **Q2: Should the primary tag be declared on the post, the contribution, or at XP-grant time?** Currently the post has a `tags` array and no primary marker. Easiest: first tag in the array is primary. Needs frontend + forum-contract plumbing.
-- **Q3: What does genesis taper do across the tree?** If `waybar` has exited genesis but `os` (parent) hasn't, does the parent-level XP get tapered? (Proposed: yes — each level applies its own taper independently. Consistent with "each subject is its own economy.")
-- **Q4: Should secondary tags earn anything at all?** Zero is clean but harsh — maybe a nominal `N / (2^depth + sec_count)` fixed small allocation so tagging adjacent subjects isn't pure cost. Counter: makes abuse math fuzzier. Default to zero; revisit with data.
-- **Q5: How do we bootstrap a parent when all three subjects (`waybar`, `gui`, `os`, `linux`) are orphans today?** The curator-audit-gate effort answers this, but the migration story matters: on deploy, do we ship a seed parent-map for the current 6 subjects, or leave it to organic curation? (Lean: governance proposal on launch seeds the obvious ones; the rest wait for curators.)
+- **Q1: Voting weight scoped to a parent subject.** If `gui` has no direct XP holders but inherits across all `waybar` holders, does voting on `gui`-level rules tally direct `gui` XP only, or inherited too? (Likely: direct only — once XP propagates, ancestors have their own direct balances. But cross-cuts into governance contract logic, worth confirming with the governance effort.)
+- **Q3: Genesis taper per level.** Each level applies its own taper independently (consistent with "each subject is its own economy"). This only reduces issuance below the `< 2N` upper bound, never exceeds it, so the audit invariant holds. Noted here for implementation clarity; not a blocker.
+- **Q4: Should secondary tags earn anything at all?** Zero is clean but harsh — maybe a nominal fixed small allocation so tagging adjacent subjects isn't pure cost. Counter: makes abuse math fuzzier. Default to zero; revisit with data.
+
+(Promoted to prerequisites in §5 and removed from this list: original Q2 — primary tag plumbing; original Q5 — seed parent map.)
 
 ## 7. Critic-chain review — TBD
 
